@@ -263,10 +263,21 @@ def validate_account_and_subdomain(request: HttpRequest, user_profile: UserProfi
 
     # Either the subdomain matches, or we're accessing Tornado from
     # and to localhost (aka spoofing a request as the user).
-    if not user_matches_subdomain(get_subdomain(request), user_profile) and not (
-        settings.RUNNING_INSIDE_TORNADO
-        and request.META["SERVER_NAME"] == "127.0.0.1"
-        and request.META["REMOTE_ADDR"] == "127.0.0.1"
+    remote_addr = request.META.get("REMOTE_ADDR", None)
+    server_name = request.META.get("SERVER_NAME", None)
+
+    if (
+        not user_matches_subdomain(get_subdomain(request), user_profile)
+        and not (
+            settings.RUNNING_INSIDE_TORNADO
+            and remote_addr == "127.0.0.1"
+            and server_name == "127.0.0.1"
+        )
+        and not (
+            # For TusD hook requests.
+            remote_addr == "127.0.0.1"
+            and server_name == "localhost"
+        )
     ):
         logging.warning(
             "User %s (%s) attempted to access API on wrong subdomain (%s)",

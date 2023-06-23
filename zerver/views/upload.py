@@ -10,6 +10,7 @@ from django.conf import settings
 from django.contrib.auth.models import AnonymousUser
 from django.core.files.uploadedfile import UploadedFile
 from django.core.signing import BadSignature, TimestampSigner
+from django.core.exceptions import ValidationError
 from django.http import (
     FileResponse,
     HttpRequest,
@@ -35,7 +36,7 @@ from zerver.lib.upload import (
 from zerver.lib.upload.base import INLINE_MIME_TYPES
 from zerver.lib.upload.local import assert_is_local_storage_path
 from zerver.lib.upload.s3 import get_signed_upload_url
-from zerver.models import UserProfile, validate_attachment_request
+from zerver.models import Attachment, UserProfile, validate_attachment_request
 
 
 def patch_disposition_header(response: HttpResponse, url: str, is_attachment: bool) -> None:
@@ -283,3 +284,13 @@ def upload_file_backend(request: HttpRequest, user_profile: UserProfile) -> Http
 
     uri = upload_message_attachment_from_request(user_file, user_profile, file_size)
     return json_success(request, data={"uri": uri})
+
+
+def get_file_data(
+    request: HttpRequest, user_profile: UserProfile, file_id_str: str
+) -> HttpResponse:
+    try:
+        file = Attachment.objects.get(file_id=file_id_str)
+        return json_success(request, {"uri": "/user_uploads/" + file.path_id})
+    except (Attachment.DoesNotExist, ValidationError):
+        raise JsonableError(_(f"There is not attachment with {file_id_str} ID."))
